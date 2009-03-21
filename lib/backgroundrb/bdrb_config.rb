@@ -52,8 +52,10 @@ module BackgrounDRb
           config[:schedules].merge!( config[environment][:schedules], &deep_proc)
         end
       end
-
-      hostname = ENV["BDRB_HOSTNAME"].to_sym || Socket.gethostname.to_sym
+      
+      
+      hn = ENV["BDRB_HOSTNAME"] || Socket.gethostname
+      hostname = hn.to_sym
       if config[hostname]
         config.merge!( config[hostname], &deep_proc)
         if config[hostname][:schedules]
