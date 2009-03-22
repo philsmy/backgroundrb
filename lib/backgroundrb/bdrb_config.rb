@@ -28,15 +28,7 @@ module BackgrounDRb
 
     def self.read_config(config_file)
       config = YAML.load(ERB.new(IO.read(config_file)).result)
-      environment = ENV["RAILS_ENV"] || config[:backgroundrb][:environment] || "development"
-
-      if respond_to?(:silence_warnings)
-        silence_warnings do
-          Object.const_set("RAILS_ENV",environment)
-        end
-      else
-        Object.const_set("RAILS_ENV",environment)
-      end
+      set_environment = RAILS_ENV.to_sym
 
       # block for deep_merging the hashes
       deep_proc = Proc.new do |key, oldval, newval|
@@ -45,18 +37,18 @@ module BackgrounDRb
         end
         next newval
       end
-
-      if config[environment]
-        config.merge!( config[environment], &deep_proc)
-        if config[environment][:schedules]
-          config[:schedules].merge!( config[environment][:schedules], &deep_proc)
+      
+      if config[set_environment]
+        config.merge!( config[set_environment], &deep_proc)
+        if config[set_environment][:schedules]
+          config[:schedules].merge!( config[set_environment][:schedules], &deep_proc)
         end
       end
-      
       
       hn = ENV["BDRB_HOSTNAME"] || Socket.gethostname
       hostname = hn.to_sym
       if config[hostname]
+        puts "Loading config for #{hostname}"
         config.merge!( config[hostname], &deep_proc)
         if config[hostname][:schedules]
           config[:schedules].merge!( config[hostname][:schedules], &deep_proc)
@@ -64,8 +56,10 @@ module BackgrounDRb
       else
         puts "Failed to find backgroundrb hostname #{hostname}"
       end
-
-      ENV["RAILS_ENV"] = environment
+      
+      environment = config[:backgroundrb][:environment]
+      puts "setting environment to: #{environment}"
+      ENV["RAILS_ENV"] = environment.to_s
       config
     end
   end
