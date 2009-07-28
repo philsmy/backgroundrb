@@ -127,7 +127,14 @@ module BackgrounDRb
         invoke_user_method(:create,worker_options[:data])
       end
       if run_persistent_jobs?
-        add_periodic_timer(persistent_delay.to_i) { check_for_enqueued_tasks }
+        add_periodic_timer(persistent_delay.to_i) {
+          begin
+            check_for_enqueued_tasks
+          rescue Object => e
+            puts("Error while running persistent task : #{Time.now}")
+            log_exception(e.backtrace)
+          end
+        }
       end
       write_pid_file(t_worker_key)
     end
@@ -299,8 +306,11 @@ module BackgrounDRb
     end
 
     def log_exception exception_object
-      STDERR.puts exception_object.to_s
-      STDERR.puts exception_object.backtrace.join("\n")
+      if exception_object.is_a?(Array)
+        STDERR.puts exception_object.each { |e| e << "\n" }
+      else
+        STDERR.puts exception_object.to_s
+      end
       STDERR.flush
     end
 
@@ -316,12 +326,12 @@ module BackgrounDRb
           end
           [t_result,"ok"]
         rescue Object => bdrb_error
-          puts "Error calling method #{user_method} with #{args} on worker #{worker_name}"
+          puts "Error calling method #{user_method} with #{args} on worker #{worker_name} at #{Time.now}"
           log_exception(bdrb_error)
           [t_result,"error"]
         end
       else
-        puts "Trying to invoke method #{user_method} with #{args} on worker #{worker_name} failed because no such method is defined on the worker"
+        puts "Trying to invoke method #{user_method} with #{args} on worker #{worker_name} failed because no such method is defined on the worker at #{Time.now}"
         [nil,"error"]
       end
     end
@@ -337,7 +347,7 @@ module BackgrounDRb
         if self.respond_to? task.worker_method
           Thread.current[:persistent_job_id] = task[:id]
           Thread.current[:job_key] = task[:job_key]
-          args = load_data(task.args)
+          args = Marshal.load(task.args)
           invoke_user_method(task.worker_method,args)
         else
           task.release_job
@@ -411,7 +421,11 @@ module BackgrounDRb
       db_config_file = YAML.load(ERB.new(IO.read("#{RAILS_HOME}/config/database.yml")).result)
       run_env = ENV["RAILS_ENV"]
       ActiveRecord::Base.establish_connection(db_config_file[run_env])
-      ActiveRecord::Base.allow_concurrency = true
+      if(Object.const_defined?(:Rails) && Rails.version < "2.2.2")
+        ActiveRecord::Base.allow_concurrency = true
+      elsif(Object.const_defined?(:RAILS_GEM_VERSION) && RAILS_GEM_VERSION < "2.2.2")
+        ActiveRecord::Base.allow_concurrency = true
+      end
     end
 
   end # end of class MetaWorker
