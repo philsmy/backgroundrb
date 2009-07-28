@@ -1,3 +1,4 @@
+require 'socket'
 require 'yaml'
 require 'erb'
 module BackgrounDRb
