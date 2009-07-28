@@ -50,6 +50,13 @@ module BackgrounDRb
       if config[hostname]
         puts "Loading config for #{hostname}"
         config.merge!( config[hostname], &deep_proc)
+        if config[hostname][:environment] and config[hostname][:environment] != RAILS_ENV
+          # this environment might be different
+          environment = config[hostname][:environment]
+          puts "setting environment to: #{environment}"
+          ENV["RAILS_ENV"] = environment.to_s
+        end
+        
         if config[hostname][:schedules]
           config[:schedules].merge!( config[hostname][:schedules], &deep_proc)
         end
@@ -57,9 +64,6 @@ module BackgrounDRb
         puts "Failed to find backgroundrb hostname #{hostname}"
       end
       
-      environment = config[:backgroundrb][:environment]
-      puts "setting environment to: #{environment}"
-      ENV["RAILS_ENV"] = environment.to_s
       config
     end
   end
